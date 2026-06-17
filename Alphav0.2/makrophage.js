@@ -85,16 +85,21 @@ class Macrophage {
 
     _patrol() {
         this.patrolTimer++;
-        if (this.patrolTimer > 180) {
-            this.patrolAngle += (Math.random() - 0.5) * 1.2;
+        if (!this._patrolWP || this.patrolTimer > 240 ||
+            Math.hypot(this._patrolWP.x - this.x, this._patrolWP.y - this.y) < 15) {
+            // Neuer Wegpunkt: zufällig in der Welt, bis zu 2000px von Heimat
+            const a = Math.random() * Math.PI * 2;
+            const d = 300 + Math.random() * 1700;
+            const hb = this.homeBase;
+            this._patrolWP = {
+                x: Math.max(100, Math.min(WORLD_WIDTH-100,  hb.x + Math.cos(a) * d)),
+                y: Math.max(100, Math.min(WORLD_HEIGHT-100, hb.y + Math.sin(a) * d))
+            };
             this.patrolTimer = 0;
         }
-        const hb = this.homeBase;
-        const tx = hb.x + Math.cos(this.patrolAngle) * this.patrolRadius;
-        const ty = hb.y + Math.sin(this.patrolAngle) * this.patrolRadius;
-        const dx = tx - this.x, dy = ty - this.y;
-        const d = Math.hypot(dx, dy);
-        if (d > 5) { this.x += (dx / d) * this.speed * 0.6; this.y += (dy / d) * this.speed * 0.6; }
+        const dx = this._patrolWP.x - this.x, dy = this._patrolWP.y - this.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 5) { this.x += (dx / dist) * this.speed * 0.65; this.y += (dy / dist) * this.speed * 0.65; }
     }
 
     draw(ctx) {

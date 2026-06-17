@@ -415,7 +415,8 @@ class ScoutBacterium extends Bacterium {
         } else {
             this.x += (dx / dist) * this.speed;
             this.y += (dy / dist) * this.speed;
-            this.angle = Math.atan2(-dy, -dx);
+            // Flagellen zeigen nach hinten = entgegen Bewegungsrichtung → Winkel = Bewegungsrichtung
+            this.angle = Math.atan2(dy, dx);
         }
     }
 
@@ -560,6 +561,20 @@ class Worker extends ScoutBacterium {
 
     update(ctx) {
         if (this.task === 'build') { this._build(ctx); return; }
+        // Schwacher Kampf: greift Feinde in Nahkampfreichweite an
+        const enemies = (ctx.immuneCells || []);
+        for (const e of enemies) {
+            if (!e.alive) continue;
+            const d = Math.hypot(e.x - this.x, e.y - this.y);
+            if (d < this.radius + (e.radius || 10) + 5) {
+                if (!this._workFightCd || this._workFightCd <= 0) {
+                    e.health -= 4; // schwacher Biss
+                    this._workFightCd = 50;
+                }
+                break;
+            }
+        }
+        if (this._workFightCd > 0) this._workFightCd--;
         super.update(ctx);
     }
 
@@ -675,14 +690,26 @@ class Fighter extends Bacterium {
             if (nearest) { this.target = nearest; this.state = 'chase'; }
         }
 
-        if (this.target) {
+        if (this.state === 'defend') {
+            // Zur Basis zurück zur Verteidigung
+            const b = this.homeBase;
+            const dx = b.x - this.x, dy = b.y - this.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            if (dist > b.radius + 60) {
+                this.x += (dx / dist) * this.speed;
+                this.y += (dy / dist) * this.speed;
+                this.angle = Math.atan2(dy, dx);
+            } else {
+                this.state = 'patrol'; // angekommen, wieder patrouillieren
+            }
+        } else if (this.target) {
             const dx = this.target.x - this.x, dy = this.target.y - this.y;
             const dist = Math.hypot(dx, dy);
             const reach = this.radius + (this.target.radius || 10);
             if (dist <= reach + 4) {
                 this.state = 'attack';
                 this.target.health -= this.attack * 0.05;
-                // Smart Auto-Attack: Verstaerkung rufen
+                this.angle = Math.atan2(dy, dx);
                 if (typeof requestReinforcement === 'function') requestReinforcement(this.target, this);
             } else {
                 this.state = 'chase';
@@ -691,17 +718,43 @@ class Fighter extends Bacterium {
                 this.angle = Math.atan2(dy, dx);
             }
         } else {
-            // Patrouille um die Basis
+            // Dynamische Patrouille: zufällige Wegpunkte in der Umgebung
             this.state = 'patrol';
-            const b = this.homeBase;
-            this.patrolAngle += 0.012;
-            const tx = b.x + Math.cos(this.patrolAngle) * this.patrolRadius;
-            const ty = b.y + Math.sin(this.patrolAngle) * this.patrolRadius;
-            const dx = tx - this.x, dy = ty - this.y;
-            const dist = Math.hypot(dx, dy) || 1;
-            this.x += (dx / dist) * this.speed * 0.7;
-            this.y += (dy / dist) * this.speed * 0.7;
+            if (!this._patrolWP || Math.hypot(this._patrolWP.x - this.x, this._patrolWP.y - this.y) < 20) {
+                this._setNextWaypoint(ctx);
+            }
+            if (this._patrolWP) {
+                const dx = this._patrolWP.x - this.x, dy = this._patrolWP.y - this.y;
+                const dist = Math.hypot(dx, dy) || 1;
+                this.x += (dx / dist) * this.speed * 0.75;
+                this.y += (dy / dist) * this.speed * 0.75;
+                this.angle = Math.atan2(dy, dx);
+            }
         }
+    }
+
+    _setNextWaypoint(ctx) {
+        const b = this.homeBase;
+        const threats = ctx.knownThreats;
+
+        // 30% Chance: bekannte Immunbasis angreifen (Krieg)
+        if (threats && threats.size > 0 && Math.random() < 0.3) {
+            const entries = [...threats.values()];
+            const pick = entries[Math.floor(Math.random() * entries.length)];
+            // Nur wenn nicht zu weit (>6000px)
+            if (Math.hypot(pick.x - this.x, pick.y - this.y) < 6000) {
+                this._patrolWP = { x: pick.x + (Math.random()-0.5)*200, y: pick.y + (Math.random()-0.5)*200 };
+                return;
+            }
+        }
+
+        // Sonst: zufälliger Punkt im Umkreis 100-600px um die Basis
+        const angle = Math.random() * Math.PI * 2;
+        const dist  = 100 + Math.random() * 500;
+        this._patrolWP = {
+            x: Math.max(50, Math.min(WORLD_WIDTH-50,  b.x + Math.cos(angle) * dist)),
+            y: Math.max(50, Math.min(WORLD_HEIGHT-50, b.y + Math.sin(angle) * dist))
+        };
     }
 
     draw(ctx) {
@@ -790,18 +843,61 @@ class Builder extends Bacterium {
     }
 
     update(ctx) {
-        // Zur Basis ruecken und sich im Boden-Ring einnisten
+        // Slot-Zuweisung: Finde freien Platz im Areal um die Basis
         const b = this.homeBase;
-        const ring = b.radius + 14 + this.slotRing * 16;
-        const tx = b.x + Math.cos(this.slotAngle) * ring;
-        const ty = b.y + Math.sin(this.slotAngle) * ring;
+        if (!this._slotAssigned) {
+            this._assignSlot(b, ctx.units || []);
+        }
+
+        const tx = this._targetX || b.x;
+        const ty = this._targetY || b.y;
         const dx = tx - this.x, dy = ty - this.y;
         const dist = Math.hypot(dx, dy);
-        if (dist < 2) { this.settled = true; }
-        else {
+        if (dist < 3) {
+            this.settled = true;
+            this.x = tx; this.y = ty;
+        } else {
+            this.settled = false;
             this.x += (dx / dist) * this.speed;
             this.y += (dy / dist) * this.speed;
+            this.angle = Math.atan2(dy, dx);
         }
+        this.flagellaPhase = ((this.flagellaPhase || 0) + (this.settled ? 0.02 : 0.05)) % (Math.PI * 2);
+    }
+
+    _assignSlot(base, units) {
+        // Baue ein Hex-Gitter um die Basis auf
+        const spacing = 20; // Abstand zwischen Bauern
+        const minR = base.radius + 12;
+        const maxR = base.radius + 220;
+        const builders = units.filter(u => u.type === 'builder');
+
+        // Finde Slot der noch nicht besetzt ist
+        for (let ring = 0; ring < 12; ring++) {
+            const r = minR + ring * spacing;
+            if (r > maxR) break;
+            const nPerRing = Math.max(6, Math.floor((2 * Math.PI * r) / spacing));
+            for (let i = 0; i < nPerRing; i++) {
+                const a = (i / nPerRing) * Math.PI * 2;
+                const sx = base.x + Math.cos(a) * r;
+                const sy = base.y + Math.sin(a) * r;
+                // Besetzt?
+                const taken = builders.some(b2 => b2 !== this && b2._targetX !== undefined &&
+                    Math.hypot(b2._targetX - sx, b2._targetY - sy) < spacing * 0.8);
+                if (!taken) {
+                    this._targetX = sx;
+                    this._targetY = sy;
+                    this._slotAssigned = true;
+                    return;
+                }
+            }
+        }
+        // Fallback: zufälliger Punkt im Areal
+        const a = Math.random() * Math.PI * 2;
+        const r = minR + Math.random() * 180;
+        this._targetX = base.x + Math.cos(a) * r;
+        this._targetY = base.y + Math.sin(a) * r;
+        this._slotAssigned = true;
     }
 
     draw(ctx) {
