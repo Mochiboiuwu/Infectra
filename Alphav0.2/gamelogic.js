@@ -181,10 +181,10 @@ class ImmuneBase {
             }
         }
 
-        // Einheiten spawnen
+        // Einheiten spawnen: immer Patrouille, bei Alert doppelt schnell
         this.spawnTimer++;
-        const interval = this.spawnInterval * Math.max(0.3, 1 - this.alertLevel * 0.6);
-        if (this.spawnTimer >= interval && detected > 0) {
+        const interval = this.spawnInterval * (detected > 0 ? Math.max(0.25, 1 - this.alertLevel * 0.7) : 1.5);
+        if (this.spawnTimer >= interval) {
             this.spawnTimer = 0;
             this._spawnUnit(unitCtx);
         }

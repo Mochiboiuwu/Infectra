@@ -100,9 +100,20 @@ class Neutrophil {
     }
 
     _seek() {
-        this.searchAngle += (Math.random() - 0.5) * 0.15;
-        this.x += Math.cos(this.searchAngle) * this.speed * 0.7;
-        this.y += Math.sin(this.searchAngle) * this.speed * 0.7;
+        // Zielgerichtete Suche statt zufälliges Wandern
+        if (!this._seekWP || Math.hypot(this._seekWP.x - this.x, this._seekWP.y - this.y) < 20) {
+            const a = Math.random() * Math.PI * 2;
+            const d = 400 + Math.random() * 1200;
+            const hb = this.homeBase;
+            this._seekWP = {
+                x: Math.max(100, Math.min(WORLD_WIDTH-100,  hb.x + Math.cos(a) * d)),
+                y: Math.max(100, Math.min(WORLD_HEIGHT-100, hb.y + Math.sin(a) * d))
+            };
+        }
+        const dx = this._seekWP.x - this.x, dy = this._seekWP.y - this.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        this.x += (dx / dist) * this.speed * 0.8;
+        this.y += (dy / dist) * this.speed * 0.8;
     }
 
     draw(ctx) {

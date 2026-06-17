@@ -91,47 +91,160 @@ const ComplementSystem = (() => {
             this.target = target;
             this.timer = 0;
             this.active = true;
-            this.phase = 'assembly'; // assembly → pore → lysis
+            this.phase = 'assembly'; // assembly -> pore -> lysis -> burst
             this.poreCount = 0;
+            this.burstParticles = [];
+            this.burstRing = null;
+            // Proteine die zum Ziel stroemen
+            this.streamParticles = [];
+            for (let i = 0; i < 12; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const dist = 80 + Math.random() * 120;
+                this.streamParticles.push({
+                    x: target.x + Math.cos(a) * dist,
+                    y: target.y + Math.sin(a) * dist,
+                    startX: target.x + Math.cos(a) * dist,
+                    startY: target.y + Math.sin(a) * dist,
+                    delay: i * 8,
+                    progress: 0,
+                    type: ['C5b','C6','C7','C8','C9'][i % 5],
+                    angle: a
+                });
+            }
         }
+
         update() {
-            if (!this.target || this.target.health <= 0) { this.active = false; return; }
+            if (this.phase === 'burst') {
+                for (const p of this.burstParticles) {
+                    p.x += p.vx; p.y += p.vy;
+                    p.vx *= 0.93; p.vy *= 0.93;
+                    p.life--;
+                }
+                this.burstParticles = this.burstParticles.filter(p => p.life > 0);
+                if (this.burstParticles.length === 0) this.active = false;
+                return;
+            }
+
+            if (!this.target || this.target.health <= 0) {
+                if (this.target) this._burst();
+                else this.active = false;
+                return;
+            }
 
             const gs2 = typeof GameState !== 'undefined' ? GameState : {};
             const resist = gs2.totalComplementResist ? gs2.totalComplementResist() : 0;
 
             this.timer++;
+
+            // Stream-Partikel zum Ziel bewegen
+            for (const sp of this.streamParticles) {
+                if (sp.delay > 0) { sp.delay--; continue; }
+                sp.progress = Math.min(1, sp.progress + 0.012);
+                if (this.target) {
+                    sp.x = sp.startX + (this.target.x - sp.startX) * sp.progress;
+                    sp.y = sp.startY + (this.target.y - sp.startY) * sp.progress;
+                }
+            }
+
             if (this.phase === 'assembly' && this.timer > 120) {
                 this.phase = 'pore';
                 this.poreCount = Math.floor(3 + Math.random() * 4);
             }
             if (this.phase === 'pore') {
-                const dmg = 0.8 * (1 - resist);
-                this.target.health -= dmg;
+                this.target.health -= 0.8 * (1 - resist);
                 if (this.timer > 300) this.phase = 'lysis';
             }
             if (this.phase === 'lysis') {
-                const dmg = 3.5 * (1 - resist);
-                this.target.health -= dmg;
-                if (this.target.health <= 0) this.active = false;
+                this.target.health -= 3.5 * (1 - resist);
             }
         }
-        draw(ctx) {
-            if (!this.active || !this.target) return;
+
+        _burst() {
+            this.phase = 'burst';
             const t = this.target;
+            const r = t ? t.radius : 10;
+            const cx = t ? t.x : 0, cy = t ? t.y : 0;
+            for (let i = 0; i < 32; i++) {
+                const a = Math.random() * Math.PI * 2;
+                const spd = 2 + Math.random() * 6;
+                this.burstParticles.push({
+                    x: cx + Math.cos(a) * r * 0.5,
+                    y: cy + Math.sin(a) * r * 0.5,
+                    vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+                    life: 35 + Math.random() * 45, maxLife: 80,
+                    r: 1.5 + Math.random() * 3,
+                    col: ['#00ff88','#00cc66','#88ffcc','#ffcc00','#ff8800'][Math.floor(Math.random()*5)]
+                });
+            }
+            this.burstRing = { x: cx, y: cy, r: r, maxR: r * 5, life: 35 };
+        }
+
+        draw(ctx) {
+            if (!this.active) return;
             ctx.save();
-            const pulse = (Math.sin(Date.now() * 0.01) + 1) / 2;
-            ctx.globalAlpha = 0.35 + pulse * 0.3;
-            ctx.beginPath(); ctx.arc(t.x, t.y, t.radius + 6, 0, Math.PI * 2);
-            ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 3; ctx.stroke();
-            if (this.phase !== 'assembly') {
-                ctx.fillStyle = '#ff0000';
+
+            if (this.phase === 'burst') {
+                if (this.burstRing) {
+                    const br = this.burstRing;
+                    br.r += (br.maxR - br.r) * 0.12;
+                    br.life--;
+                    ctx.globalAlpha = Math.max(0, br.life / 35) * 0.7;
+                    ctx.beginPath(); ctx.arc(br.x, br.y, br.r, 0, Math.PI * 2);
+                    ctx.strokeStyle = '#ff4400'; ctx.lineWidth = 5; ctx.stroke();
+                    // zweiter Ring
+                    ctx.globalAlpha = Math.max(0, br.life / 35) * 0.3;
+                    ctx.beginPath(); ctx.arc(br.x, br.y, br.r * 0.6, 0, Math.PI * 2);
+                    ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 2; ctx.stroke();
+                }
+                for (const p of this.burstParticles) {
+                    ctx.globalAlpha = (p.life / p.maxLife) * 0.9;
+                    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                    ctx.fillStyle = p.col; ctx.fill();
+                }
+                ctx.restore();
+                return;
+            }
+
+            if (!this.target) { ctx.restore(); return; }
+            const t = this.target;
+
+            // Stream-Partikel
+            for (const sp of this.streamParticles) {
+                if (sp.progress <= 0.02) continue;
+                ctx.globalAlpha = Math.min(1, sp.progress * 2) * 0.75;
+                ctx.beginPath(); ctx.arc(sp.x, sp.y, 3, 0, Math.PI * 2);
+                ctx.fillStyle = PROTEIN_COLOR[sp.type] || '#ff4444'; ctx.fill();
+            }
+
+            const pulse = (Math.sin(this.timer * 0.08) + 1) / 2;
+
+            if (this.phase === 'assembly') {
+                ctx.globalAlpha = 0.2 + pulse * 0.2;
+                ctx.beginPath(); ctx.arc(t.x, t.y, t.radius + 9, 0, Math.PI * 2);
+                ctx.strokeStyle = '#ff8800'; ctx.lineWidth = 2.5; ctx.stroke();
+            }
+            if (this.phase === 'pore' || this.phase === 'lysis') {
+                ctx.globalAlpha = 0.4 + pulse * 0.35;
+                ctx.beginPath(); ctx.arc(t.x, t.y, t.radius + 7, 0, Math.PI * 2);
+                ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 3; ctx.stroke();
+                ctx.globalAlpha = 0.9;
+                ctx.fillStyle = '#ff2200';
                 for (let i = 0; i < this.poreCount; i++) {
-                    const a = (i / this.poreCount) * Math.PI * 2;
+                    const a = (i / this.poreCount) * Math.PI * 2 + this.timer * 0.012;
                     ctx.beginPath();
-                    ctx.arc(t.x + Math.cos(a) * t.radius, t.y + Math.sin(a) * t.radius, 2.5, 0, Math.PI * 2);
+                    ctx.arc(t.x + Math.cos(a) * t.radius, t.y + Math.sin(a) * t.radius, 2.8, 0, Math.PI * 2);
                     ctx.fill();
                 }
+            }
+            if (this.phase === 'lysis') {
+                ctx.globalAlpha = 0.15 + pulse * 0.25;
+                ctx.beginPath(); ctx.arc(t.x, t.y, t.radius + 14, 0, Math.PI * 2);
+                ctx.fillStyle = '#ff0000'; ctx.fill();
+                ctx.globalAlpha = pulse * 0.85;
+                ctx.font = 'bold 10px monospace';
+                ctx.fillStyle = '#ffff00';
+                ctx.textAlign = 'center';
+                ctx.fillText('LYSE', t.x, t.y - t.radius - 12);
             }
             ctx.restore();
         }
