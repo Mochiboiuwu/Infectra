@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main Menu</title>
+    <link rel="stylesheet" href="menu.css">
+</head>
+<body>
+    
+    <h1>Infectra</h1>
+    <h2>Main Menu</h2>
+<div class="menu-buttons">
+    <a href="game.html" class="btn">Infect Body</a>
+    <button id="settings-btn" class="btn">Settings</button>
+</div>
+
+<div id="settings-box" class="settings-container">
+    <h3>Settings</h3>
+
+    <!-- Anti Aliasing -->
+     <div class="option">
+          <label for="setting-aa">Anti-Aliasing (AA):</label>
+          <input type="checkbox" id="setting-aa" checked>
+    </div>
+
+     <!-- HUD Größe-->
+      <div class="option">
+        <label>HUD Size:</label>
+        <select id="setting-hud-size">
+            <option value="small">small</option>
+            <option value="medium" selected>medium</option>
+            <option value="large">large</option>
+        </select>
+      </div>
+      
+      <!-- HUD Farbe-->
+       <div class="option">
+        <label>HUD Color:</label>
+        <input type="color" id="setting-hud-color" value="#00ffff">
+       </div>
+
+       <button id="close-settings-btn">close</button>
+</div>
+
+<script src="menu.js"></script>
+
+</body>
+</html>
