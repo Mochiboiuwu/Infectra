@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infectra</title>
+    <link rel="stylesheet" href="game.css">
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+    <canvas id="minimapCanvas"></canvas>
+
+    <div id="ingame-hud">
+        <div class="hud-title">INFECTRA</div>
+
+        <div class="hud-stat">
+            <span class="hud-stat-label">Bakterien</span>
+            <span class="hud-stat-value" id="ui-mass">1</span>
+        </div>
+
+        <hr class="hud-sep">
+
+        <div class="hud-section-label">Ressourcen</div>
+        <div class="res-row">
+            <span class="res-dot g"></span>
+            <span class="res-name">Glukose</span>
+            <span class="res-val" id="ui-glucose">0</span>
+        </div>
+        <div class="res-row">
+            <span class="res-dot a"></span>
+            <span class="res-name">Aminosäuren</span>
+            <span class="res-val" id="ui-amino">0</span>
+        </div>
+        <div class="res-row">
+            <span class="res-dot l"></span>
+            <span class="res-name">Lipide</span>
+            <span class="res-val" id="ui-lipid">0</span>
+        </div>
+        <div class="res-row">
+            <span class="res-dot i"></span>
+            <span class="res-name">Eisen</span>
+            <span class="res-val" id="ui-iron">0</span>
+        </div>
+
+        <hr class="hud-sep">
+
+        <div class="immune-row">
+            <span class="immune-label">Immunsystem</span>
+            <span id="immune-status">RUHEND</span>
+        </div>
+
+        <button id="btn-scout">+ Scout</button>
+        <button id="btn-production">Produktion</button>
+        <button id="btn-techtree">Fokusbaum</button>
+        <button id="btn-recall">&#x26A0; Alle zur&uuml;ckrufen</button>
+
+        <hr class="hud-sep">
+
+        <div class="hud-section-label">Komplement</div>
+        <div id="complement-status">
+            <div class="comp-row">
+                <span class="comp-label">C3b-Marker</span>
+                <span id="ui-c3b">0</span>
+            </div>
+            <div class="comp-row">
+                <span class="comp-label">MAC-Angriffe</span>
+                <span id="ui-mac">0</span>
+            </div>
+            <div class="comp-row">
+                <span class="comp-label">C5a-Spiegel</span>
+                <div class="comp-bar"><div id="ui-c5a-fill" class="comp-bar-fill"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="defense-alert">&#x26A0; BASIS UNTER ANGRIFF!</div>
+
+    <div id="base-indicator">IN BASIS</div>
+    <div id="controls-hint">WASD = Land · Pfeiltasten = Blutbahn · Scroll = Zoom</div>
+
+    <div id="vessel-hint">In Blutbahn &mdash; Pfeiltasten zum Steuern &middot; WASD halten zum Verlassen</div>
+    <div id="vessel-exit-indicator">
+        <div class="vei-label">Verlasse Blutbahn...</div>
+        <div class="vei-bar"><div class="vei-fill"></div></div>
+    </div>
+
+    <!-- ─── Produktions-Overlay ─── -->
+    <div id="production-overlay">
+        <div class="prod-window">
+            <div class="prod-header">
+                <span class="prod-title">KOLONIE-PRODUKTION</span>
+                <span class="prod-subtitle">Brutkammer &middot; manuelle &amp; automatische Vermehrung</span>
+                <button id="btn-close-production">&times;</button>
+            </div>
+            <div id="production-list"></div>
+            <div class="prod-foot">Auto-Produktion baut bis zur Ziel-Anzahl, solange Ressourcen da sind. Einheiten sind nur durch Ressourcen begrenzt.</div>
+        </div>
+    </div>
+
+    <!-- ─── Fokusbaum-Overlay ─── -->
+    <div id="techtree-overlay">
+        <div class="tt-window">
+            <div class="tt-header">
+                <span class="tt-title">FOKUSBAUM</span>
+                <span class="tt-subtitle">Evolutionspfade der Kolonie</span>
+                <button id="btn-close-techtree">&times;</button>
+            </div>
+            <div id="techtree-branches"></div>
+        </div>
+    </div>
+
+    <script src="techtree.js"></script>
+    <script src="production.js"></script>
+    <script src="bacteria.js"></script>
+    <script src="komplement.js"></script>
+    <script src="makrophage.js"></script>
+    <script src="phagozyt.js"></script>
+    <script src="gamelogic.js"></script>
+</body>
+</html>
